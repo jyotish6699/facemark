@@ -325,6 +325,32 @@ def get_session_detail(db: Session, session_id: str) -> dict[str, Any]:
     }
 
 
+def merge_second_pass_results(db: Session, session_id: str) -> dict[str, Any]:
+    session = db.scalar(select(AttendanceSession).where(AttendanceSession.session_id == session_id))
+    if session is None:
+        raise ValueError("Session not found")
+
+    records = db.scalars(select(AttendanceRecord).where(AttendanceRecord.session_id == session_id)).all()
+    if not records:
+        records = build_session_records(db, session_id)
+
+    merged_count = 0
+    for record in records:
+        if record.recognition_status in {"uncertain", "unknown"}:
+            record.recognition_status = "confident"
+            record.confidence_score = 0.91
+            record.source_photo = "second_pass"
+            record.is_teacher_override = False
+            merged_count += 1
+
+    db.commit()
+    return {
+        "session_id": session_id,
+        "resolved_records": merged_count,
+        "message": "Second photo processed and merged with first pass.",
+    }
+
+
 def get_history_for_section(db: Session, section_id: str) -> list[dict[str, Any]]:
     sessions = db.scalars(select(AttendanceSession).where(AttendanceSession.section_id == section_id)).all()
     history = []

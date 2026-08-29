@@ -7,7 +7,14 @@ from app.api.deps import get_current_teacher
 from app.db.models import AttendanceSession
 from app.db.session import get_db
 from app.schemas import AttendanceSessionCreate, AttendanceSessionDetailResponse, AttendanceSessionResponse, FinalizeRequest, RecognitionResponse
-from app.services.demo_service import build_session_records, create_session, finalize_session, get_history_for_section, get_session_detail
+from app.services.demo_service import (
+    build_session_records,
+    create_session,
+    finalize_session,
+    get_history_for_section,
+    get_session_detail,
+    merge_second_pass_results,
+)
 
 router = APIRouter(prefix="/api/attendance", tags=["attendance"])
 
@@ -124,18 +131,14 @@ def resolve_second_photo(
     db: Session = Depends(get_db),
     current_teacher=Depends(get_current_teacher),
 ):
-    records = build_session_records(db, session_id)
-    resolved = []
-    for record in records:
-        if record["recognition_status"] in {"uncertain", "unknown"}:
-            record["recognition_status"] = "confident"
-            record["confidence_score"] = 0.91
-            resolved.append(record)
-    return {
-        "session_id": session_id,
-        "message": "Second photo processed and merged with first pass.",
-        "resolved_records": len(resolved),
-    }
+    session = db.query(AttendanceSession).filter(AttendanceSession.session_id == session_id).first()
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    if session.teacher_id != current_teacher.teacher_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Teacher cannot resolve another teacher's session")
+
+    response = merge_second_pass_results(db, session_id)
+    return response
 
 
 @router.post("/sessions/{session_id}/finalize")

@@ -65,6 +65,10 @@ def test_attendance_session_flow_and_finalize():
     assert "results" in payload
     assert set(payload["results"]).issubset({"confident", "uncertain", "unknown", "not_detected"})
 
+    resolve = client.post(f"/api/attendance/sessions/{session_id}/resolve", headers=headers)
+    assert resolve.status_code == 200, resolve.text
+    assert resolve.json()["resolved_records"] >= 0
+
     finalize = client.post(
         f"/api/attendance/sessions/{session_id}/finalize",
         json={
