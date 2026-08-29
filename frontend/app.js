@@ -1,219 +1,77 @@
 const app = document.getElementById('app');
+const API_BASE_URL = 'http://localhost:8001';
 
 const demoState = {
   currentView: 'login',
   selectedClass: null,
   attendanceSession: null,
-  attendanceHistory: [
-    { date: '2026-08-25', className: 'CSE-A', subject: 'Operating Systems', present: 28, absent: 4, status: 'Finalized' },
-    { date: '2026-08-22', className: 'CSE-A', subject: 'DBMS', present: 26, absent: 6, status: 'Finalized' },
-    { date: '2026-08-18', className: 'CSE-A', subject: 'AI', present: 29, absent: 3, status: 'Finalized' }
-  ],
-  classes: [
-    { id: 'cse-a', name: 'CSE-A', subject: 'Operating Systems', count: 32, teacher: 'Ms. Priya Nair' },
-    { id: 'cse-b', name: 'CSE-B', subject: 'Data Structures', count: 34, teacher: 'Mr. Sanjay Shah' },
-    { id: 'it-b', name: 'IT-B', subject: 'Computer Networks', count: 28, teacher: 'Dr. Ananya Singh' }
-  ],
-  students: [
-    { id: 1, name: 'Rahul Verma', recognition: 'Present', finalStatus: 'Present', confidence: '98%' },
-    { id: 2, name: 'Aman Shah', recognition: 'Present', finalStatus: 'Present', confidence: '96%' },
-    { id: 3, name: 'Priya Nair', recognition: 'Review', finalStatus: 'Present', confidence: '67%' },
-    { id: 4, name: 'Karan Mehta', recognition: 'Unknown', finalStatus: 'Review', confidence: 'N/A' },
-    { id: 5, name: 'Sneha Iyer', recognition: 'Not detected', finalStatus: 'Absent', confidence: 'N/A' },
-    { id: 6, name: 'Deepak Roy', recognition: 'Present', finalStatus: 'Present', confidence: '97%' },
-    { id: 7, name: 'Meera Joshi', recognition: 'Present', finalStatus: 'Present', confidence: '95%' },
-    { id: 8, name: 'Rohit Kumar', recognition: 'Review', finalStatus: 'Present', confidence: '64%' }
-  ],
-  detectResults: {
-    confident: [
-      { name: 'Rahul Verma', confidence: '98%' },
-      { name: 'Aman Shah', confidence: '96%' },
-      { name: 'Deepak Roy', confidence: '97%' },
-      { name: 'Meera Joshi', confidence: '95%' }
-    ],
-    review: [
-      { name: 'Face #12', candidate: 'Priya Nair', confidence: '67%' },
-      { name: 'Face #18', candidate: 'Rohit Kumar', confidence: '64%' }
-    ],
-    unknown: [
-      { name: 'Face #23', candidate: 'Unknown' }
-    ],
-    notDetected: [
-      { name: 'Sneha Iyer' },
-      { name: 'Student 42' }
-    ]
-  }
+  attendanceHistory: [],
+  classes: [],
+  students: [],
+  detectResults: { confident: [], review: [], unknown: [], notDetected: [] },
+  teacher: null,
+  token: null,
+  sessionId: null,
+  subjectMap: []
 };
 
-function render() {
-  const activeClass = demoState.selectedClass || demoState.classes[0];
+async function apiFetch(path, options = {}) {
+  const requestHeaders = { ...(options.headers || {}) };
 
-  if (demoState.currentView === 'login') {
-    app.innerHTML = `
-      <div class="app-shell">
-        <div class="auth-screen">
-          <div class="auth-card">
-            <div class="eyebrow">FaceMark</div>
-            <h1>Classroom attendance, simplified.</h1>
-            <p class="subtitle">Log in to review recognition, resolve uncertain faces, and finalize class attendance quickly.</p>
-
-            <form id="loginForm" class="form-grid">
-              <div class="input-wrap">
-                <label for="email">Email</label>
-                <input id="email" type="email" value="teacher@facemark.demo" required />
-              </div>
-
-              <div class="input-wrap">
-                <label for="password">Password</label>
-                <input id="password" type="password" value="demo123" required />
-              </div>
-
-              <button type="submit" class="primary-btn">Login</button>
-              <div id="loginAlert" class="alert error"></div>
-            </form>
-          </div>
-        </div>
-      </div>
-    `;
-
-    const form = document.getElementById('loginForm');
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value.trim();
-      const alertBox = document.getElementById('loginAlert');
-
-      if (!email || !password) {
-        alertBox.textContent = 'Please enter both email and password.';
-        alertBox.classList.add('show');
-        return;
-      }
-
-      if (email.includes('@') && password.length >= 4) {
-        demoState.currentView = 'dashboard';
-        render();
-      } else {
-        alertBox.textContent = 'Login failed. Please use valid teacher credentials.';
-        alertBox.classList.add('show');
-      }
-    });
-
-    return;
+  if (!(options.body instanceof FormData) && !requestHeaders['Content-Type']) {
+    requestHeaders['Content-Type'] = 'application/json';
   }
 
-  app.innerHTML = `
-    <div class="app-shell">
-      <header class="topbar">
-        <div class="brand">
-          <div class="brand-mark">F</div>
-          <span>FaceMark</span>
-        </div>
-        <div class="user-badge">Teacher • Priya Nair</div>
-      </header>
+  if (!requestHeaders.Authorization && demoState.token) {
+    requestHeaders.Authorization = `Bearer ${demoState.token}`;
+  }
 
-      <div class="page">
-        <div class="panel">
-          <div class="panel-header">
-            <div>
-              <div class="eyebrow">Teacher Dashboard</div>
-              <h2>Attendance overview</h2>
-            </div>
-            <div class="nav-pills">
-              <button type="button" data-nav="dashboard">Dashboard</button>
-              <button type="button" data-nav="history">History</button>
-              <button type="button" class="primary-btn" data-nav="class-select">Start Attendance</button>
-            </div>
-          </div>
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: requestHeaders,
+  });
 
-          <div class="kpi-row">
-            <div class="kpi">
-              <small>Assigned classes</small>
-              <strong>3</strong>
-            </div>
-            <div class="kpi">
-              <small>Sessions this month</small>
-              <strong>12</strong>
-            </div>
-            <div class="kpi">
-              <small>Average attendance</small>
-              <strong>91%</strong>
-            </div>
-          </div>
-        </div>
+  if (!response.ok) {
+    const errorObj = await response.json().catch(() => ({}));
+    throw new Error(errorObj.detail || `Request failed: ${response.status}`);
+  }
 
-        <div class="dashboard-grid">
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Assigned classes</h3>
-              <button class="secondary-btn" data-nav="class-select">Select class</button>
-            </div>
-
-            <div class="class-grid">
-              ${demoState.classes.map((cls) => `
-                <div class="class-card ${cls.id === activeClass.id ? 'selected' : ''}" data-class-id="${cls.id}">
-                  <div class="eyebrow">${cls.subject}</div>
-                  <h3>${cls.name}</h3>
-                  <div class="stats">
-                    <span>${cls.count} students</span>
-                    <span>${cls.teacher}</span>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Recent sessions</h3>
-            </div>
-            <div class="list-stack">
-              ${demoState.attendanceHistory.map((item) => `
-                <div class="list-item">
-                  <div class="meta">
-                    <strong>${item.className}</strong>
-                    <span>${item.subject}</span>
-                    <small>${item.date}</small>
-                  </div>
-                  <span class="badge success">${item.present} present</span>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  bindDashboardEvents();
+  return response;
 }
 
-function bindDashboardEvents() {
-  document.querySelectorAll('[data-class-id]').forEach((card) => {
-    card.addEventListener('click', () => {
-      const id = card.dataset.classId;
-      demoState.selectedClass = demoState.classes.find((cls) => cls.id === id) || demoState.classes[0];
-      demoState.currentView = 'class-select';
-      renderClassSelect();
-    });
-  });
+async function loadDashboard() {
+  if (!demoState.teacher) return;
 
-  document.querySelectorAll('[data-nav]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const target = button.dataset.nav;
-      if (target === 'dashboard') {
-        demoState.currentView = 'dashboard';
-        render();
-      }
-      if (target === 'class-select') {
-        demoState.currentView = 'class-select';
-        renderClassSelect();
-      }
-      if (target === 'history') {
-        demoState.currentView = 'history';
-        renderHistory();
-      }
-    });
-  });
+  try {
+    const response = await apiFetch(`/api/dashboard/teacher/${demoState.teacher.teacher_id}`);
+    const data = await response.json();
+    demoState.teacher = data.teacher || demoState.teacher;
+
+    demoState.classes = (data.subjects || []).map((subject) => ({
+      id: subject.subject_id,
+      name: data.section.section_name,
+      subject: subject.subject_name,
+      count: 32,
+      teacher: data.teacher.name,
+      subject_id: subject.subject_id,
+      section_id: data.section.section_id,
+    }));
+
+    demoState.attendanceHistory = (data.recent_sessions || []).map((session) => ({
+      date: session.session_date,
+      className: data.section.section_name,
+      subject: session.subject_name || session.subject_id,
+      present: session.present_count || data.stats.present || 0,
+      absent: session.total_students ? Math.max(session.total_students - (session.present_count || 0), 0) : 0,
+      status: session.status,
+    }));
+
+    if (!demoState.selectedClass && demoState.classes.length) {
+      demoState.selectedClass = demoState.classes[0];
+    }
+  } catch (error) {
+    console.error('Dashboard load failed', error);
+  }
 }
 
 function renderClassSelect() {
@@ -275,15 +133,12 @@ function renderClassSelect() {
     });
   });
 
-  document.getElementById('startSessionBtn').addEventListener('click', () => {
-    demoState.currentView = 'session';
-    demoState.attendanceSession = {
-      className: cls.name,
-      subject: cls.subject,
-      date: new Date().toISOString().slice(0, 10),
-      status: 'Open'
-    };
-    renderSession();
+    document.getElementById('startSessionBtn').addEventListener('click', async () => {
+    try {
+      await startSessionForSelectedClass();
+    } catch (error) {
+      alert(error.message || 'Unable to start the attendance session.');
+    }
   });
 
   document.querySelectorAll('[data-nav]').forEach((button) => {
@@ -418,13 +273,20 @@ function renderUpload() {
     </div>
   `;
 
-  document.getElementById('mockProcessBtn').addEventListener('click', () => {
+    document.getElementById('mockProcessBtn').addEventListener('click', async () => {
     const processingBox = document.getElementById('processingBox');
     processingBox.classList.remove('hidden');
-    setTimeout(() => {
+
+    try {
+      const response = await apiFetch(`/api/attendance/sessions/${demoState.sessionId}/recognize`);
+      const data = await response.json();
+      demoState.detectResults = buildRecognitionResults(data);
       demoState.currentView = 'results';
       renderResults();
-    }, 1300);
+    } catch (error) {
+      processingBox.classList.add('hidden');
+      alert(error.message || 'Recognition failed. Please try again.');
+    }
   });
 
   document.querySelectorAll('[data-nav]').forEach((button) => {
@@ -574,9 +436,16 @@ function renderSecondPhoto() {
     </div>
   `;
 
-  document.getElementById('processSecondPhotoBtn').addEventListener('click', () => {
-    demoState.currentView = 'final-review';
-    renderFinalReview();
+    document.getElementById('processSecondPhotoBtn').addEventListener('click', async () => {
+    try {
+      const response = await apiFetch(`/api/attendance/sessions/${demoState.sessionId}/resolve`);
+      const data = await response.json();
+      demoState.students = mapSessionStudents(data);
+      demoState.currentView = 'final-review';
+      renderFinalReview();
+    } catch (error) {
+      alert(error.message || 'Unable to merge the second photo results.');
+    }
   });
 
   document.querySelectorAll('[data-nav]').forEach((button) => {
@@ -673,9 +542,35 @@ function renderFinalReview() {
     });
   });
 
-  document.getElementById('finalizeBtn').addEventListener('click', () => {
-    demoState.currentView = 'history';
-    renderHistory();
+    document.getElementById('finalizeBtn').addEventListener('click', async () => {
+    try {
+      const decisions = {};
+      demoState.students.forEach((student) => {
+        if (student.studentId) {
+          decisions[student.studentId] = (student.finalStatus || 'present').toLowerCase();
+        }
+      });
+
+      const response = await apiFetch(`/api/attendance/sessions/${demoState.sessionId}/finalize`, {
+        method: 'POST',
+        body: JSON.stringify({
+          teacher_id: demoState.teacher.teacher_id,
+          decisions,
+        }),
+      });
+      const data = await response.json();
+
+      if (data.status === 'finalized') {
+        await loadDashboard();
+        demoState.currentView = 'history';
+        renderHistory();
+        return;
+      }
+
+      throw new Error(data.detail || 'Could not finalize attendance.');
+    } catch (error) {
+      alert(error.message || 'Attendance could not be finalized.');
+    }
   });
 
   document.querySelectorAll('[data-nav]').forEach((button) => {
