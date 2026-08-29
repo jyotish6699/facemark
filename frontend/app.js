@@ -23,7 +23,7 @@ async function apiFetch(path, options = {}) {
   }
 
   if (!requestHeaders.Authorization && demoState.token) {
-    requestHeaders.Authorization = `Bearer ${demoState.token}`;
+    requestHeaders.Authorization = 'Bearer ' + demoState.token;
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -74,6 +74,261 @@ async function loadDashboard() {
   }
 }
 
+async function loginUser(email, password) {
+  const response = await apiFetch('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await response.json();
+  demoState.teacher = data.teacher;
+  demoState.token = data.access_token;
+  await loadDashboard();
+  demoState.currentView = 'dashboard';
+  render();
+}
+
+function buildRecognitionResults(data) {
+  const results = { confident: [], review: [], unknown: [], notDetected: [] };
+  const confidentList = data.results?.confident || [];
+  const uncertainList = data.results?.uncertain || [];
+  const unknownList = data.results?.unknown || [];
+  const notDetectedList = data.results?.not_detected || [];
+
+  results.confident = confidentList.map((item) => ({
+    name: item.name || item.student_id || 'Student',
+    confidence: item.confidence != null ? `${(item.confidence * 100).toFixed(0)}%` : 'N/A',
+  }));
+
+  results.review = uncertainList.map((item) => ({
+    name: item.name || item.student_id || 'Uncertain face',
+    candidate: item.name || item.student_id || 'Needs review',
+    confidence: item.confidence != null ? `${(item.confidence * 100).toFixed(0)}%` : 'N/A',
+  }));
+
+  results.unknown = unknownList.map((item) => ({
+    name: item.name || item.student_id || 'Unknown face',
+    candidate: 'Unknown',
+  }));
+
+  results.notDetected = notDetectedList.map((item) => ({
+    name: item.name || item.student_id || 'Unknown student',
+  }));
+
+  return results;
+}
+
+function mapSessionStudents(data) {
+  if (!Array.isArray(data.students)) return [];
+
+  return data.students.map((student, index) => ({
+    id: index + 1,
+    name: student.full_name || `Student ${index + 1}`,
+    recognition: student.recognition_status || 'Review',
+    finalStatus: student.final_status || 'Review',
+    confidence: student.confidence_score != null ? `${(student.confidence_score * 100).toFixed(0)}%` : 'N/A',
+    studentId: student.student_id,
+  }));
+}
+
+function render() {
+  const activeClass = demoState.selectedClass || demoState.classes[0];
+
+  if (demoState.currentView === 'login') {
+    app.innerHTML = `
+      <div class="app-shell">
+        <div class="auth-screen">
+          <div class="auth-card">
+            <div class="eyebrow">FaceMark</div>
+            <h1>Classroom attendance, simplified.</h1>
+            <p class="subtitle">Log in to review recognition, resolve uncertain faces, and finalize class attendance quickly.</p>
+
+            <form id="loginForm" class="form-grid">
+              <div class="input-wrap">
+                <label for="email">Email</label>
+                <input id="email" type="email" value="ayesha.khan@facemark.local" required />
+              </div>
+
+              <div class="input-wrap">
+                <label for="password">Password</label>
+                <input id="password" type="password" value="Teacher@123" required />
+              </div>
+
+              <button type="submit" class="primary-btn">Login</button>
+              <div id="loginAlert" class="alert error"></div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const form = document.getElementById('loginForm');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+      const alertBox = document.getElementById('loginAlert');
+
+      if (!email || !password) {
+        alertBox.textContent = 'Please enter both email and password.';
+        alertBox.classList.add('show');
+        return;
+      }
+
+      try {
+        await loginUser(email, password);
+      } catch (error) {
+        alertBox.textContent = error.message || 'Login failed. Please use valid teacher credentials.';
+        alertBox.classList.add('show');
+      }
+    });
+
+    return;
+  }
+
+  app.innerHTML = `
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">F</div>
+          <span>FaceMark</span>
+        </div>
+        <div class="user-badge">Teacher • ${demoState.teacher?.name || 'Teacher'}</div>
+      </header>
+
+      <div class="page">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="eyebrow">Teacher Dashboard</div>
+              <h2>Attendance overview</h2>
+            </div>
+            <div class="nav-pills">
+              <button type="button" data-nav="dashboard">Dashboard</button>
+              <button type="button" data-nav="history">History</button>
+              <button type="button" class="primary-btn" data-nav="class-select">Start Attendance</button>
+            </div>
+          </div>
+
+          <div class="kpi-row">
+            <div class="kpi">
+              <small>Assigned classes</small>
+              <strong>${demoState.classes.length || 1}</strong>
+            </div>
+            <div class="kpi">
+              <small>Sessions</small>
+              <strong>${demoState.attendanceHistory.length || 0}</strong>
+            </div>
+            <div class="kpi">
+              <small>Attendance</small>
+              <strong>${demoState.teacher ? 'Live' : '—'}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Assigned classes</h3>
+              <button class="secondary-btn" data-nav="class-select">Select class</button>
+            </div>
+
+            <div class="class-grid">
+              ${(demoState.classes.length ? demoState.classes : [{ id: 'demo', name: 'CSE-A', subject: 'Database Systems', count: 32, teacher: demoState.teacher?.name || 'Teacher' }]).map((cls) => `
+                <div class="class-card ${cls.id === activeClass.id ? 'selected' : ''}" data-class-id="${cls.id}">
+                  <div class="eyebrow">${cls.subject}</div>
+                  <h3>${cls.name}</h3>
+                  <div class="stats">
+                    <span>${cls.count} students</span>
+                    <span>${cls.teacher}</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Recent sessions</h3>
+            </div>
+            <div class="list-stack">
+              ${(demoState.attendanceHistory.length ? demoState.attendanceHistory : [{ date: 'No sessions yet', className: activeClass.name, subject: activeClass.subject, present: 0, absent: 0, status: 'Pending' }]).map((item) => `
+                <div class="list-item">
+                  <div class="meta">
+                    <strong>${item.className}</strong>
+                    <span>${item.subject}</span>
+                    <small>${item.date}</small>
+                  </div>
+                  <span class="badge success">${item.present} present</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  bindDashboardEvents();
+}
+
+function bindDashboardEvents() {
+  document.querySelectorAll('[data-class-id]').forEach((card) => {
+    card.addEventListener('click', () => {
+      const id = card.dataset.classId;
+      demoState.selectedClass = demoState.classes.find((cls) => cls.id === id) || demoState.classes[0];
+      renderClassSelect();
+    });
+  });
+
+  document.querySelectorAll('[data-nav]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const target = button.dataset.nav;
+      if (target === 'dashboard') {
+        demoState.currentView = 'dashboard';
+        render();
+      }
+      if (target === 'class-select') {
+        demoState.currentView = 'class-select';
+        renderClassSelect();
+      }
+      if (target === 'history') {
+        demoState.currentView = 'history';
+        renderHistory();
+      }
+    });
+  });
+}
+
+async function startSessionForSelectedClass() {
+  if (!demoState.teacher || !demoState.selectedClass) return;
+
+  const payload = {
+    teacher_id: demoState.teacher.teacher_id,
+    section_id: demoState.teacher.assigned_section_id,
+    subject_id: demoState.selectedClass.subject_id || 'sub-101',
+    session_date: new Date().toISOString().slice(0, 10),
+    notes: 'Demo attendance session',
+  };
+
+  const response = await apiFetch('/api/attendance/sessions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+
+  demoState.sessionId = data.session_id;
+  demoState.attendanceSession = {
+    className: demoState.selectedClass.name,
+    subject: demoState.selectedClass.subject,
+    date: data.session_date || payload.session_date,
+    status: data.status,
+    sessionId: data.session_id,
+  };
+
+  demoState.currentView = 'session';
+  renderSession();
+}
+
 function renderClassSelect() {
   const cls = demoState.selectedClass || demoState.classes[0];
   app.innerHTML = `
@@ -83,7 +338,7 @@ function renderClassSelect() {
           <div class="brand-mark">F</div>
           <span>FaceMark</span>
         </div>
-        <div class="user-badge">Teacher • Priya Nair</div>
+        <div class="user-badge">Teacher • ${demoState.teacher?.name || 'Teacher'}</div>
       </header>
 
       <div class="page">
