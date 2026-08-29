@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.db.models import AttendanceSession
 from app.db.session import get_db
-from app.schemas import AttendanceSessionCreate, AttendanceSessionResponse, FinalizeRequest, RecognitionResponse
-from app.services.demo_service import build_session_records, create_session, finalize_session, get_history_for_section
+from app.schemas import AttendanceSessionCreate, AttendanceSessionDetailResponse, AttendanceSessionResponse, FinalizeRequest, RecognitionResponse
+from app.services.demo_service import build_session_records, create_session, finalize_session, get_history_for_section, get_session_detail
 
 router = APIRouter(prefix="/api/attendance", tags=["attendance"])
 
@@ -30,6 +30,15 @@ def create_attendance_session(payload: AttendanceSessionCreate, db: Session = De
         status=session.status,
         notes=session.notes,
     )
+
+
+@router.get("/sessions/{session_id}", response_model=AttendanceSessionDetailResponse)
+def get_session(session_id: str, db: Session = Depends(get_db)):
+    try:
+        data = get_session_detail(db, session_id)
+        return AttendanceSessionDetailResponse(**data)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.post("/sessions/{session_id}/upload")

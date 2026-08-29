@@ -39,6 +39,10 @@ def test_attendance_session_flow_and_finalize():
     assert session.status_code == 200, session.text
     session_id = session.json()["session_id"]
 
+    detail = client.get(f"/api/attendance/sessions/{session_id}")
+    assert detail.status_code == 200, detail.text
+    assert len(detail.json()["students"]) >= 1
+
     recognition = client.post(f"/api/attendance/sessions/{session_id}/recognize")
     assert recognition.status_code == 200, recognition.text
     payload = recognition.json()

@@ -94,6 +94,26 @@ class AttendanceRecordResponse(BaseModel):
     is_teacher_override: bool
 
 
+class SessionDetailStudent(BaseModel):
+    student_id: str
+    full_name: str
+    roll_number: str | None = None
+    recognition_status: str
+    confidence_score: float | None = None
+    final_status: str | None = None
+
+
+class AttendanceSessionDetailResponse(BaseModel):
+    session_id: str
+    teacher_id: str
+    section_id: str
+    subject_id: str
+    session_date: str
+    status: str
+    notes: str | None = None
+    students: list[SessionDetailStudent]
+
+
 class HistoryItem(BaseModel):
     session_id: str
     subject_name: str

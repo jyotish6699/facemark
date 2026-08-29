@@ -280,6 +280,51 @@ def finalize_session(db: Session, session_id: str, teacher_id: str, decisions: d
     }
 
 
+def get_session_detail(db: Session, session_id: str) -> dict[str, Any]:
+    session = db.scalar(select(AttendanceSession).where(AttendanceSession.session_id == session_id))
+    if session is None:
+        raise ValueError("Session not found")
+
+    records = db.scalars(select(AttendanceRecord).where(AttendanceRecord.session_id == session_id)).all()
+    if not records:
+        records = build_session_records(db, session_id)
+
+    students_by_id = {
+        student.student_id: student
+        for student in db.scalars(select(Student).where(Student.section_id == session.section_id)).all()
+    }
+
+    students = []
+    for record in records:
+        record_student_id = record["student_id"] if isinstance(record, dict) else record.student_id
+        record_status = record["recognition_status"] if isinstance(record, dict) else record.recognition_status
+        record_confidence = record["confidence_score"] if isinstance(record, dict) else record.confidence_score
+        record_final = record["final_status"] if isinstance(record, dict) else record.final_status
+
+        student = students_by_id.get(record_student_id)
+        students.append(
+            {
+                "student_id": record_student_id,
+                "full_name": student.full_name if student else "Unknown Student",
+                "roll_number": student.roll_number if student else None,
+                "recognition_status": record_status,
+                "confidence_score": record_confidence,
+                "final_status": record_final,
+            }
+        )
+
+    return {
+        "session_id": session.session_id,
+        "teacher_id": session.teacher_id,
+        "section_id": session.section_id,
+        "subject_id": session.subject_id,
+        "session_date": session.session_date.isoformat(),
+        "status": session.status,
+        "notes": session.notes,
+        "students": students,
+    }
+
+
 def get_history_for_section(db: Session, section_id: str) -> list[dict[str, Any]]:
     sessions = db.scalars(select(AttendanceSession).where(AttendanceSession.section_id == section_id)).all()
     history = []
