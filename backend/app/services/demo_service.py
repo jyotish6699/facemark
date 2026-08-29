@@ -110,6 +110,32 @@ def get_dashboard_data(db: Session, teacher_id: str) -> dict[str, Any]:
         .limit(5)
     ).all()
 
+    attendance_sessions = db.scalars(
+        select(AttendanceSession).where(AttendanceSession.teacher_id == teacher.teacher_id)
+    ).all()
+
+    present_count = 0
+    review_count = 0
+    pending_count = 0
+
+    for session in attendance_sessions:
+        records = db.scalars(select(AttendanceRecord).where(AttendanceRecord.session_id == session.session_id)).all()
+        if session.status != "finalized":
+            pending_count += 1
+        for record in records:
+            if record.final_status == "present":
+                present_count += 1
+            elif record.final_status in {"review", "late", "excused"}:
+                review_count += 1
+
+    stats = {
+        "total_sessions": len(attendance_sessions),
+        "present": present_count,
+        "review": review_count,
+        "pending": pending_count,
+        "finalized": sum(1 for session in attendance_sessions if session.status == "finalized"),
+    }
+
     return {
         "teacher": {
             "teacher_id": teacher.teacher_id,
@@ -134,11 +160,7 @@ def get_dashboard_data(db: Session, teacher_id: str) -> dict[str, Any]:
             }
             for subject in subjects
         ],
-        "stats": {
-            "present": 18,
-            "review": 3,
-            "pending": 1,
-        },
+        "stats": stats,
         "recent_sessions": [
             {
                 "session_id": s.session_id,

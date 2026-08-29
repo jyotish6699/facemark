@@ -27,6 +27,7 @@ def test_teacher_login_and_dashboard_flow():
     payload = dashboard.json()
     assert payload["section"]["section_name"] == "CSE-A"
     assert len(payload["subjects"]) >= 1
+    assert set(payload["stats"]).issuperset({"total_sessions", "present", "review", "pending", "finalized"})
 
 
 def test_attendance_session_flow_and_finalize():
