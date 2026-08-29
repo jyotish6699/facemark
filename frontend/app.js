@@ -117,14 +117,54 @@ function buildRecognitionResults(data) {
   return results;
 }
 
+function normalizeRecognitionLabel(value) {
+  switch ((value || '').toLowerCase()) {
+    case 'confident':
+    case 'present':
+      return 'Present';
+    case 'uncertain':
+    case 'review':
+      return 'Review';
+    case 'unknown':
+      return 'Unknown';
+    case 'not_detected':
+    case 'absent':
+      return 'Absent';
+    default:
+      return 'Review';
+  }
+}
+
+function normalizeFinalStatus(value) {
+  switch ((value || '').toLowerCase()) {
+    case 'present':
+      return 'Present';
+    case 'absent':
+      return 'Absent';
+    case 'review':
+    case 'late':
+    case 'excused':
+      return 'Review';
+    default:
+      return 'Review';
+  }
+}
+
+function toDecisionValue(value) {
+  const normalized = (value || '').toLowerCase();
+  if (normalized === 'present') return 'present';
+  if (normalized === 'absent') return 'absent';
+  return 'review';
+}
+
 function mapSessionStudents(data) {
-  if (!Array.isArray(data.students)) return [];
+  if (!Array.isArray(data?.students)) return [];
 
   return data.students.map((student, index) => ({
     id: index + 1,
     name: student.full_name || `Student ${index + 1}`,
-    recognition: student.recognition_status || 'Review',
-    finalStatus: student.final_status || 'Review',
+    recognition: normalizeRecognitionLabel(student.recognition_status),
+    finalStatus: normalizeFinalStatus(student.final_status),
     confidence: student.confidence_score != null ? `${(student.confidence_score * 100).toFixed(0)}%` : 'N/A',
     studentId: student.student_id,
   }));
@@ -533,7 +573,9 @@ function renderUpload() {
     processingBox.classList.remove('hidden');
 
     try {
-      const response = await apiFetch(`/api/attendance/sessions/${demoState.sessionId}/recognize`);
+      const response = await apiFetch(`/api/attendance/sessions/${demoState.sessionId}/recognize`, {
+        method: 'POST',
+      });
       const data = await response.json();
       demoState.detectResults = buildRecognitionResults(data);
       demoState.currentView = 'results';
@@ -693,9 +735,12 @@ function renderSecondPhoto() {
 
     document.getElementById('processSecondPhotoBtn').addEventListener('click', async () => {
     try {
-      const response = await apiFetch(`/api/attendance/sessions/${demoState.sessionId}/resolve`);
-      const data = await response.json();
-      demoState.students = mapSessionStudents(data);
+      await apiFetch(`/api/attendance/sessions/${demoState.sessionId}/resolve`, {
+        method: 'POST',
+      });
+      const detailResponse = await apiFetch(`/api/attendance/sessions/${demoState.sessionId}`);
+      const detailData = await detailResponse.json();
+      demoState.students = mapSessionStudents(detailData);
       demoState.currentView = 'final-review';
       renderFinalReview();
     } catch (error) {
@@ -802,7 +847,7 @@ function renderFinalReview() {
       const decisions = {};
       demoState.students.forEach((student) => {
         if (student.studentId) {
-          decisions[student.studentId] = (student.finalStatus || 'present').toLowerCase();
+          decisions[student.studentId] = toDecisionValue(student.finalStatus || 'Present');
         }
       });
 
