@@ -52,12 +52,14 @@ async function loadDashboard() {
       const classKey = `${subjectCode}-${(subject.subject_name || 'subject').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
       return {
         id: classKey,
-        name: data.section.section_name,
+        name: subject.subject_name,
+        sectionName: data.section.section_name,
         subject: subject.subject_name,
-        count: 32,
-        teacher: data.teacher.name,
+        subjectCode,
         subject_id: subject.subject_id,
         subject_code: subjectCode,
+        count: 32,
+        teacher: data.teacher.name,
         section_id: data.section.section_id,
       };
     });
@@ -278,10 +280,10 @@ function render() {
             </div>
 
             <div class="class-grid">
-              ${(demoState.classes.length ? demoState.classes : [{ id: 'demo', name: 'CSE-A', subject: 'Database Systems', count: 32, teacher: demoState.teacher?.name || 'Teacher' }]).map((cls) => `
+              ${(demoState.classes.length ? demoState.classes : [{ id: 'demo', sectionName: 'CSE-A', name: 'Database Systems', subject: 'Database Systems', subjectCode: 'CSE-101', count: 32, teacher: demoState.teacher?.name || 'Teacher' }]).map((cls) => `
                 <div class="class-card ${cls.id === activeClass.id ? 'selected' : ''}" data-class-id="${cls.id}">
-                  <div class="eyebrow">${cls.subject}</div>
-                  <h3>${cls.name}</h3>
+                  <div class="eyebrow">${cls.subjectCode || cls.subject_id || 'CSE-A'}</div>
+                  <h3>${cls.subject || cls.name}</h3>
                   <div class="stats">
                     <span>${cls.count} students</span>
                     <span>${cls.teacher}</span>
@@ -365,7 +367,8 @@ async function startSessionForSelectedClass() {
 
   demoState.sessionId = data.session_id;
   demoState.attendanceSession = {
-    className: demoState.selectedClass.name,
+    className: demoState.selectedClass.sectionName || demoState.selectedClass.name,
+    sectionName: demoState.selectedClass.sectionName || demoState.selectedClass.name,
     subject: demoState.selectedClass.subject,
     date: data.session_date || payload.session_date,
     status: data.status,
@@ -403,8 +406,8 @@ function renderClassSelect() {
           <div class="class-grid">
             ${demoState.classes.map((item) => `
               <div class="class-card ${item.id === cls.id ? 'selected' : ''}" data-class-id="${item.id}">
-                <div class="eyebrow">${item.subject}</div>
-                <h3>${item.name}</h3>
+                <div class="eyebrow">${item.subjectCode || item.subject_id || 'CSE-A'}</div>
+                <h3>${item.subject || item.name}</h3>
                 <div class="stats">
                   <span>${item.count} students</span>
                   <span>${item.teacher}</span>
@@ -415,7 +418,8 @@ function renderClassSelect() {
 
           <div class="summary-box" style="margin-top: 24px;">
             <strong>Selected class</strong>
-            <div>${cls.name} • ${cls.subject}</div>
+            <div>${cls.sectionName || 'CSE-A'} • ${cls.subjectCode || cls.subject_id || cls.subject || cls.name}</div>
+            <div>${cls.subject || cls.name}</div>
             <div>${cls.count} enrolled students</div>
             <div class="action-row">
               <button class="primary-btn" id="startSessionBtn">Start attendance session</button>
@@ -455,7 +459,7 @@ function renderClassSelect() {
 }
 
 function renderSession() {
-  const session = demoState.attendanceSession || { className: 'CSE-A', subject: 'Operating Systems', date: '2026-08-29' };
+  const session = demoState.attendanceSession || { className: 'CSE-A', sectionName: 'CSE-A', subject: 'Operating Systems', date: '2026-08-29' };
   app.innerHTML = `
     <div class="app-shell">
       <header class="topbar">
@@ -471,7 +475,7 @@ function renderSession() {
           <div class="panel-header">
             <div>
               <div class="eyebrow">Attendance Setup</div>
-              <h2>${session.className}</h2>
+              <h2>${session.subject || session.className}</h2>
             </div>
             <div class="nav-pills">
               <button type="button" data-nav="dashboard">Dashboard</button>
@@ -481,8 +485,9 @@ function renderSession() {
           <div class="session-form">
             <div class="summary-box">
               <strong>Selected class</strong>
-              <span>${session.className}</span>
-              <span>Subject: ${session.subject}</span>
+              <span>${session.sectionName || session.className}</span>
+              <span>Subject code: ${demoState.selectedClass?.subjectCode || demoState.selectedClass?.subject_id || 'CSE-A'}</span>
+              <span>Subject: ${session.subject || session.className}</span>
               <span>Date: ${session.date}</span>
               <span>Students enrolled: ${demoState.selectedClass?.count || 32}</span>
             </div>

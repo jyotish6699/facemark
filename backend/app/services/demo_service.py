@@ -70,43 +70,65 @@ def _image_quality_score(file_bytes: bytes) -> float:
 
 
 def seed_demo_data(db: Session) -> None:
-    existing_teacher = db.scalar(select(Teacher).where(Teacher.email == "ayesha.khan@facemark.local"))
-    if existing_teacher:
-        return
+    section = db.scalar(select(Section).where(Section.section_id == "sec-cse-a"))
+    if section is None:
+        section = Section(
+            section_id="sec-cse-a",
+            section_name="CSE-A",
+            department="Computer Science",
+            semester="5th",
+            academic_year="2026-2027",
+        )
+        db.add(section)
+        db.flush()
 
-    section = Section(
-        section_id="sec-cse-a",
-        section_name="CSE-A",
-        department="Computer Science",
-        semester="5th",
-        academic_year="2026-2027",
-    )
-    db.add(section)
-    db.flush()
-
-    teacher = Teacher(
-        teacher_id="t-001",
-        name="Ayesha Khan",
-        email="ayesha.khan@facemark.local",
-        password_hash=hash_password("Teacher@123"),
-        role="teacher",
-        assigned_section_id=section.section_id,
-    )
-    db.add(teacher)
+    teacher = db.scalar(select(Teacher).where(Teacher.email == "ayesha.khan@facemark.local"))
+    if teacher is None:
+        teacher = Teacher(
+            teacher_id="t-001",
+            name="Ayesha Khan",
+            email="ayesha.khan@facemark.local",
+            password_hash=hash_password("Teacher@123"),
+            role="teacher",
+            assigned_section_id=section.section_id,
+        )
+        db.add(teacher)
 
     subject_names = {
-        "sub-101": ("Database Systems", "Monday", "DB Lab 2"),
-        "sub-102": ("Operating Systems", "Tuesday", "OS Lab 1"),
-        "sub-103": ("Object Oriented Programming", "Wednesday", "Room 305"),
-        "sub-104": ("Data Structures", "Thursday", "Room 210"),
-        "sub-105": ("Computer Networks", "Friday", "Room 412"),
+        "CSE-101": ("Database Systems", "Monday", "DB Lab 2"),
+        "CSE-204": ("Operating Systems", "Tuesday", "OS Lab 1"),
+        "INT-345": ("Object Oriented Programming", "Wednesday", "Room 305"),
+        "CSE-220": ("Data Structures", "Thursday", "Room 210"),
+        "NET-412": ("Computer Networks", "Friday", "Room 412"),
     }
 
+    desired_subject_ids = set(subject_names)
+    existing_section_subjects = db.scalars(select(SectionSubject).where(SectionSubject.section_id == section.section_id)).all()
+    for link in existing_section_subjects:
+        if link.subject_id not in desired_subject_ids:
+            db.delete(link)
+
     for subject_id, (name, day, room) in subject_names.items():
-        subject = Subject(subject_id=subject_id, subject_name=name, schedule_day=day, room=room)
-        db.add(subject)
+        subject = db.scalar(select(Subject).where(Subject.subject_id == subject_id))
+        if subject is None:
+            subject = Subject(subject_id=subject_id, subject_name=name, schedule_day=day, room=room)
+            db.add(subject)
+        else:
+            subject.subject_name = name
+            subject.schedule_day = day
+            subject.room = room
         db.flush()
-        db.add(SectionSubject(section_id=section.section_id, subject_id=subject_id))
+
+        existing_link = db.scalar(
+            select(SectionSubject).where(
+                SectionSubject.section_id == section.section_id,
+                SectionSubject.subject_id == subject_id,
+            )
+        )
+        if existing_link is None:
+            db.add(SectionSubject(section_id=section.section_id, subject_id=subject_id))
+
+    db.commit()
 
     students = [
         "Rahul Sharma", "Priya Nair", "Arjun Mehta", "Sneha Verma", "Karan Patel", "Ananya Singh",
