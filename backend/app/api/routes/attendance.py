@@ -3,6 +3,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_teacher
 from app.db.models import AttendanceSession
 from app.db.session import get_db
 from app.schemas import AttendanceSessionCreate, AttendanceSessionDetailResponse, AttendanceSessionResponse, FinalizeRequest, RecognitionResponse
@@ -12,7 +13,16 @@ router = APIRouter(prefix="/api/attendance", tags=["attendance"])
 
 
 @router.post("/sessions", response_model=AttendanceSessionResponse)
-def create_attendance_session(payload: AttendanceSessionCreate, db: Session = Depends(get_db)):
+def create_attendance_session(
+    payload: AttendanceSessionCreate,
+    db: Session = Depends(get_db),
+    current_teacher=Depends(get_current_teacher),
+):
+    if current_teacher.teacher_id != payload.teacher_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Teacher does not match session creator",
+        )
     session = create_session(
         db,
         teacher_id=payload.teacher_id,
@@ -33,16 +43,27 @@ def create_attendance_session(payload: AttendanceSessionCreate, db: Session = De
 
 
 @router.get("/sessions/{session_id}", response_model=AttendanceSessionDetailResponse)
-def get_session(session_id: str, db: Session = Depends(get_db)):
+def get_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_teacher=Depends(get_current_teacher),
+):
     try:
         data = get_session_detail(db, session_id)
+        if data["teacher_id"] != current_teacher.teacher_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Teacher cannot access this session")
         return AttendanceSessionDetailResponse(**data)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.post("/sessions/{session_id}/upload")
-def upload_photo(session_id: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
+def upload_photo(
+    session_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_teacher=Depends(get_current_teacher),
+):
     # For demo purposes, we only validate the file and return a placeholder URL.
     if not file.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No file selected")
@@ -55,7 +76,11 @@ def upload_photo(session_id: str, file: UploadFile = File(...), db: Session = De
 
 
 @router.post("/sessions/{session_id}/recognize", response_model=RecognitionResponse)
-def recognize_session(session_id: str, db: Session = Depends(get_db)):
+def recognize_session(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_teacher=Depends(get_current_teacher),
+):
     records = build_session_records(db, session_id)
     results = {
         "confident": [],
@@ -94,7 +119,11 @@ def recognize_session(session_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/sessions/{session_id}/resolve")
-def resolve_second_photo(session_id: str, db: Session = Depends(get_db)):
+def resolve_second_photo(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_teacher=Depends(get_current_teacher),
+):
     records = build_session_records(db, session_id)
     resolved = []
     for record in records:
@@ -110,7 +139,14 @@ def resolve_second_photo(session_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/sessions/{session_id}/finalize")
-def finalize_attendance(session_id: str, payload: FinalizeRequest, db: Session = Depends(get_db)):
+def finalize_attendance(
+    session_id: str,
+    payload: FinalizeRequest,
+    db: Session = Depends(get_db),
+    current_teacher=Depends(get_current_teacher),
+):
+    if current_teacher.teacher_id != payload.teacher_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Teacher cannot finalize another teacher's session")
     try:
         response = finalize_session(db, session_id, payload.teacher_id, payload.decisions)
         return response
@@ -119,5 +155,11 @@ def finalize_attendance(session_id: str, payload: FinalizeRequest, db: Session =
 
 
 @router.get("/history")
-def attendance_history(section_id: str, db: Session = Depends(get_db)):
+def attendance_history(
+    section_id: str,
+    db: Session = Depends(get_db),
+    current_teacher=Depends(get_current_teacher),
+):
+    if current_teacher.assigned_section_id != section_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Teacher cannot access another section's history")
     return get_history_for_section(db, section_id)

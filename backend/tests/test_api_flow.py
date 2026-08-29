@@ -14,7 +14,15 @@ def test_teacher_login_and_dashboard_flow():
     data = response.json()
     assert data["teacher"]["teacher_id"] == "t-001"
 
-    dashboard = client.get("/api/dashboard/teacher/t-001")
+    token = data["access_token"]
+    me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200, me.text
+    assert me.json()["teacher_id"] == "t-001"
+
+    dashboard = client.get(
+        "/api/dashboard/teacher/t-001",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert dashboard.status_code == 200, dashboard.text
     payload = dashboard.json()
     assert payload["section"]["section_name"] == "CSE-A"
@@ -22,7 +30,14 @@ def test_teacher_login_and_dashboard_flow():
 
 
 def test_attendance_session_flow_and_finalize():
-    subjects = client.get("/api/sections/sec-cse-a/subjects")
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "ayesha.khan@facemark.local", "password": "Teacher@123"},
+    )
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    subjects = client.get("/api/sections/sec-cse-a/subjects", headers=headers)
     assert subjects.status_code == 200, subjects.text
     subject = subjects.json()[0]
 
@@ -35,15 +50,16 @@ def test_attendance_session_flow_and_finalize():
             "session_date": "2026-08-29",
             "notes": "Demo attendance session",
         },
+        headers=headers,
     )
     assert session.status_code == 200, session.text
     session_id = session.json()["session_id"]
 
-    detail = client.get(f"/api/attendance/sessions/{session_id}")
+    detail = client.get(f"/api/attendance/sessions/{session_id}", headers=headers)
     assert detail.status_code == 200, detail.text
     assert len(detail.json()["students"]) >= 1
 
-    recognition = client.post(f"/api/attendance/sessions/{session_id}/recognize")
+    recognition = client.post(f"/api/attendance/sessions/{session_id}/recognize", headers=headers)
     assert recognition.status_code == 200, recognition.text
     payload = recognition.json()
     assert "results" in payload
@@ -59,10 +75,11 @@ def test_attendance_session_flow_and_finalize():
                 "st-003": "absent",
             },
         },
+        headers=headers,
     )
     assert finalize.status_code == 200, finalize.text
     assert finalize.json()["status"] == "finalized"
 
-    history = client.get("/api/attendance/history?section_id=sec-cse-a")
+    history = client.get("/api/attendance/history?section_id=sec-cse-a", headers=headers)
     assert history.status_code == 200, history.text
     assert len(history.json()) >= 1
