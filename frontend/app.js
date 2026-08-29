@@ -47,15 +47,20 @@ async function loadDashboard() {
     const data = await response.json();
     demoState.teacher = data.teacher || demoState.teacher;
 
-    demoState.classes = (data.subjects || []).map((subject) => ({
-      id: subject.subject_id,
-      name: data.section.section_name,
-      subject: subject.subject_name,
-      count: 32,
-      teacher: data.teacher.name,
-      subject_id: subject.subject_id,
-      section_id: data.section.section_id,
-    }));
+    demoState.classes = (data.subjects || []).map((subject) => {
+      const subjectCode = subject.subject_id || `subject-${Math.random().toString(36).slice(2, 9)}`;
+      const classKey = `${subjectCode}-${(subject.subject_name || 'subject').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+      return {
+        id: classKey,
+        name: data.section.section_name,
+        subject: subject.subject_name,
+        count: 32,
+        teacher: data.teacher.name,
+        subject_id: subject.subject_id,
+        subject_code: subjectCode,
+        section_id: data.section.section_id,
+      };
+    });
 
     demoState.attendanceHistory = (data.recent_sessions || []).map((session) => ({
       date: session.session_date,
@@ -315,7 +320,7 @@ function bindDashboardEvents() {
   document.querySelectorAll('[data-class-id]').forEach((card) => {
     card.addEventListener('click', () => {
       const id = card.dataset.classId;
-      demoState.selectedClass = demoState.classes.find((cls) => cls.id === id) || demoState.classes[0];
+      demoState.selectedClass = demoState.classes.find((cls) => (cls.id === id) || (cls.subject_id === id) || (cls.subject_code === id)) || demoState.classes[0];
       renderClassSelect();
     });
   });
@@ -343,10 +348,11 @@ async function startSessionForSelectedClass() {
   if (!demoState.teacher || !demoState.selectedClass) return;
 
   const chosenClass = demoState.selectedClass || demoState.classes[0];
+  const subjectId = chosenClass.subject_id || chosenClass.subject_code || chosenClass.id || 'sub-101';
   const payload = {
     teacher_id: demoState.teacher.teacher_id,
     section_id: demoState.teacher.assigned_section_id,
-    subject_id: chosenClass.subject_id || chosenClass.id || 'sub-101',
+    subject_id: subjectId,
     session_date: new Date().toISOString().slice(0, 10),
     notes: `Demo attendance session for ${chosenClass.subject || chosenClass.name}`,
   };
@@ -424,7 +430,7 @@ function renderClassSelect() {
   document.querySelectorAll('[data-class-id]').forEach((card) => {
     card.addEventListener('click', () => {
       const id = card.dataset.classId;
-      demoState.selectedClass = demoState.classes.find((clsCandidate) => clsCandidate.id === id) || demoState.classes[0];
+      demoState.selectedClass = demoState.classes.find((clsCandidate) => (clsCandidate.id === id) || (clsCandidate.subject_id === id) || (clsCandidate.subject_code === id)) || demoState.classes[0];
       renderClassSelect();
     });
   });
