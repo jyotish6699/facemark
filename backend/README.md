@@ -20,9 +20,9 @@ uvicorn app.main:app --reload
 
 ## Default behavior
 
-For local demo/testing, the app falls back to a SQLite database if `DATABASE_URL` is not configured.
+For the hackathon demo, PostgreSQL is the default database. The app is configured to use the PostgreSQL connection string in `.env`.
 
-For production/demo PostgreSQL use, set `DATABASE_URL` to the PostgreSQL connection string in `.env`.
+If no `DATABASE_URL` is configured, it falls back to a local SQLite database only for quick local testing.
 
 ## Demo login
 
