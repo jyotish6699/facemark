@@ -50,6 +50,25 @@ def _image_signature_from_bytes(file_bytes: bytes) -> list[float]:
     return _generate_vector(seed)
 
 
+def _image_quality_score(file_bytes: bytes) -> float:
+    if not file_bytes:
+        return 0.0
+    values = list(file_bytes)
+    if not values:
+        return 0.0
+    mean = sum(values) / len(values)
+    variance = sum((value - mean) ** 2 for value in values) / len(values)
+    entropy = 0.0
+    counts = {}
+    for value in values:
+        counts[value] = counts.get(value, 0) + 1
+    total = len(values)
+    for count in counts.values():
+        probability = count / total
+        entropy -= probability * math.log(probability, 2)
+    return min(1.0, (variance / 40000.0) + (entropy / 8.0) * 0.6)
+
+
 def seed_demo_data(db: Session) -> None:
     existing_teacher = db.scalar(select(Teacher).where(Teacher.email == "ayesha.khan@facemark.local"))
     if existing_teacher:
@@ -143,6 +162,10 @@ def get_dashboard_data(db: Session, teacher_id: str) -> dict[str, Any]:
         .limit(5)
     ).all()
 
+    recent_subject_map = {
+        subject.subject_id: subject.subject_name for subject in subjects
+    }
+
     attendance_sessions = db.scalars(
         select(AttendanceSession).where(AttendanceSession.teacher_id == teacher.teacher_id)
     ).all()
@@ -198,6 +221,7 @@ def get_dashboard_data(db: Session, teacher_id: str) -> dict[str, Any]:
             {
                 "session_id": s.session_id,
                 "subject_id": s.subject_id,
+                "subject_name": recent_subject_map.get(s.subject_id, "Unknown subject"),
                 "status": s.status,
                 "session_date": s.session_date.isoformat(),
             }
@@ -306,6 +330,23 @@ def verify_image_against_student_db(db: Session, session_id: str, file_bytes: by
     if session is None:
         raise ValueError("Session not found")
 
+    if len(file_bytes) < 32:
+        return {
+            "session_id": session_id,
+            "status": "invalid_image",
+            "message": "Please upload a classroom photo that contains students from this class.",
+            "results": {"confident": [], "uncertain": [], "unknown": [], "not_detected": []},
+        }
+
+    quality_score = _image_quality_score(file_bytes)
+    if quality_score < 0.15:
+        return {
+            "session_id": session_id,
+            "status": "no_students_detected",
+            "message": "No student faces were detected in this image. Please send a classroom image of the students in this class.",
+            "results": {"confident": [], "uncertain": [], "unknown": [], "not_detected": []},
+        }
+
     students = db.scalars(select(Student).where(Student.section_id == session.section_id)).all()
     photo_vector = _image_signature_from_bytes(file_bytes)
     matches: list[dict[str, Any]] = []
@@ -332,6 +373,14 @@ def verify_image_against_student_db(db: Session, session_id: str, file_bytes: by
                 "recognition_status": recognition_status,
             }
         )
+
+    if not any(match["confidence"] >= 0.7 for match in matches):
+        return {
+            "session_id": session_id,
+            "status": "class_mismatch",
+            "message": "This image does not match the students in this class. Please upload a photo of the CSE-A classroom or ensure it contains students from this section.",
+            "results": {"confident": [], "uncertain": [], "unknown": [], "not_detected": []},
+        }
 
     existing_records = db.scalars(select(AttendanceRecord).where(AttendanceRecord.session_id == session_id)).all()
     for record in existing_records:
@@ -372,6 +421,8 @@ def verify_image_against_student_db(db: Session, session_id: str, file_bytes: by
 
     return {
         "session_id": session_id,
+        "status": "matched",
+        "message": "Image verified against the current class roster.",
         "results": result_buckets,
     }
 

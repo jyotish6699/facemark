@@ -342,12 +342,13 @@ function bindDashboardEvents() {
 async function startSessionForSelectedClass() {
   if (!demoState.teacher || !demoState.selectedClass) return;
 
+  const chosenClass = demoState.selectedClass || demoState.classes[0];
   const payload = {
     teacher_id: demoState.teacher.teacher_id,
     section_id: demoState.teacher.assigned_section_id,
-    subject_id: demoState.selectedClass.subject_id || 'sub-101',
+    subject_id: chosenClass.subject_id || chosenClass.id || 'sub-101',
     session_date: new Date().toISOString().slice(0, 10),
-    notes: 'Demo attendance session',
+    notes: `Demo attendance session for ${chosenClass.subject || chosenClass.name}`,
   };
 
   const response = await apiFetch('/api/attendance/sessions', {
@@ -593,6 +594,13 @@ function renderUpload() {
           body: formData,
         });
         const data = await response.json();
+
+        if (data.status && data.status !== 'matched') {
+          processingBox.classList.add('hidden');
+          alert(data.message || 'This image is not valid for the current class. Please upload a classroom image of this class.');
+          return;
+        }
+
         demoState.detectResults = buildRecognitionResults(data);
         demoState.currentView = 'results';
         renderResults();
