@@ -1,10 +1,12 @@
 from datetime import date
 
+import uuid
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_teacher
-from app.db.models import AttendanceSession
+from app.db.models import AttendanceSession, UploadedImage
 from app.db.session import get_db
 from app.schemas import AttendanceSessionCreate, AttendanceSessionDetailResponse, AttendanceSessionResponse, FinalizeRequest, RecognitionResponse
 from app.services.demo_service import (
@@ -14,6 +16,7 @@ from app.services.demo_service import (
     get_history_for_section,
     get_session_detail,
     merge_second_pass_results,
+    verify_image_against_student_db,
 )
 
 router = APIRouter(prefix="/api/attendance", tags=["attendance"])
@@ -71,15 +74,52 @@ def upload_photo(
     db: Session = Depends(get_db),
     current_teacher=Depends(get_current_teacher),
 ):
-    # For demo purposes, we only validate the file and return a placeholder URL.
     if not file.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No file selected")
+
+    session = db.query(AttendanceSession).filter(AttendanceSession.session_id == session_id).first()
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    if session.teacher_id != current_teacher.teacher_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Teacher cannot upload for another teacher's session")
+
+    file_bytes = file.file.read()
+    storage_url = f"storage://demo/{session_id}/{uuid.uuid4()}-{file.filename}"
+    db.add(
+        UploadedImage(
+            image_id=f"img-{uuid.uuid4().hex[:12]}",
+            session_id=session_id,
+            image_type=file.content_type or "image",
+            storage_url=storage_url,
+            uploaded_by=current_teacher.teacher_id,
+        )
+    )
+    db.commit()
+
     return {
         "session_id": session_id,
         "file_name": file.filename,
-        "storage_url": f"storage://demo/{session_id}/{file.filename}",
+        "storage_url": storage_url,
         "message": "Photo uploaded successfully",
     }
+
+
+@router.post("/sessions/{session_id}/verify-image", response_model=RecognitionResponse)
+def verify_image(
+    session_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_teacher=Depends(get_current_teacher),
+):
+    session = db.query(AttendanceSession).filter(AttendanceSession.session_id == session_id).first()
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    if session.teacher_id != current_teacher.teacher_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Teacher cannot verify another teacher's session")
+
+    file_bytes = file.file.read()
+    payload = verify_image_against_student_db(db, session_id, file_bytes)
+    return {"session_id": session_id, "results": payload["results"]}
 
 
 @router.post("/sessions/{session_id}/recognize", response_model=RecognitionResponse)

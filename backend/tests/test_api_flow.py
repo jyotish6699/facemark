@@ -88,3 +88,77 @@ def test_attendance_session_flow_and_finalize():
     history = client.get("/api/attendance/history?section_id=sec-cse-a", headers=headers)
     assert history.status_code == 200, history.text
     assert len(history.json()) >= 1
+
+
+def test_attendance_image_upload_flow():
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "ayesha.khan@facemark.local", "password": "Teacher@123"},
+    )
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    subjects = client.get("/api/sections/sec-cse-a/subjects", headers=headers)
+    subject = subjects.json()[0]
+
+    session = client.post(
+        "/api/attendance/sessions",
+        json={
+            "teacher_id": "t-001",
+            "section_id": "sec-cse-a",
+            "subject_id": subject["subject_id"],
+            "session_date": "2026-08-29",
+            "notes": "Upload image flow test",
+        },
+        headers=headers,
+    )
+    session_id = session.json()["session_id"]
+
+    file_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc``\x00\x00\x00\x02\x00\x01\xe5\x27\x98\x3d\x00\x00\x00\x00IEND\xaeB`\x82"
+    upload = client.post(
+        f"/api/attendance/sessions/{session_id}/upload",
+        files={"file": ("demo-upload.png", file_bytes, "image/png")},
+        headers=headers,
+    )
+    assert upload.status_code == 200, upload.text
+    payload = upload.json()
+    assert payload["file_name"] == "demo-upload.png"
+    assert payload["session_id"] == session_id
+    assert payload["storage_url"].startswith("storage://demo/")
+
+
+def test_attendance_database_verification_flow():
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "ayesha.khan@facemark.local", "password": "Teacher@123"},
+    )
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    subjects = client.get("/api/sections/sec-cse-a/subjects", headers=headers)
+    subject = subjects.json()[0]
+
+    session = client.post(
+        "/api/attendance/sessions",
+        json={
+            "teacher_id": "t-001",
+            "section_id": "sec-cse-a",
+            "subject_id": subject["subject_id"],
+            "session_date": "2026-08-29",
+            "notes": "Database verification test",
+        },
+        headers=headers,
+    )
+    session_id = session.json()["session_id"]
+
+    file_bytes = b"sample-image-content-for-student-matching"
+    verify = client.post(
+        f"/api/attendance/sessions/{session_id}/verify-image",
+        files={"file": ("verification.png", file_bytes, "image/png")},
+        headers=headers,
+    )
+    assert verify.status_code == 200, verify.text
+    payload = verify.json()
+    assert payload["session_id"] == session_id
+    assert set(payload["results"]).issubset({"confident", "uncertain", "unknown", "not_detected"})
+    assert any(payload["results"].get(bucket) for bucket in ["confident", "uncertain", "unknown", "not_detected"])

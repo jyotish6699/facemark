@@ -329,6 +329,26 @@ h1, h2, h3, h4, p { margin: 0; }
   justify-items: center;
 }
 .upload-zone input[type="file"] { display: none; }
+.photo-preview-wrap {
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  background: rgba(15, 23, 42, 0.02);
+  border-radius: 18px;
+  padding: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 180px;
+}
+.selected-photo-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 14px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
 .upload-icon {
   width: 70px;
   height: 70px;

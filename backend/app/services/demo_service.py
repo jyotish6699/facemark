@@ -1,3 +1,5 @@
+import hashlib
+import math
 import random
 from datetime import date
 from typing import Any
@@ -15,6 +17,37 @@ def _generate_vector(seed: int) -> list[float]:
         value = ((seed * 17 + i * 13) % 97) / 97.0
         values.append(round(value, 6))
     return values
+
+
+def _string_to_vector(raw: str | None) -> list[float]:
+    if not raw:
+        return []
+    try:
+        cleaned = raw.replace("[", "").replace("]", "")
+        numbers = [float(part.strip()) for part in cleaned.split(",") if part.strip()]
+        return numbers
+    except (TypeError, ValueError):
+        return []
+
+
+def _vector_similarity(left: list[float], right: list[float]) -> float:
+    if not left or not right:
+        return 0.0
+    limit = min(len(left), len(right))
+    left = left[:limit]
+    right = right[:limit]
+    dot = sum(a * b for a, b in zip(left, right))
+    left_norm = math.sqrt(sum(a * a for a in left))
+    right_norm = math.sqrt(sum(b * b for b in right))
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
+    return max(0.0, min(1.0, dot / (left_norm * right_norm)))
+
+
+def _image_signature_from_bytes(file_bytes: bytes) -> list[float]:
+    digest = hashlib.sha256(file_bytes).hexdigest()
+    seed = int(digest[:8], 16) % 1000
+    return _generate_vector(seed)
 
 
 def seed_demo_data(db: Session) -> None:
@@ -266,6 +299,81 @@ def build_session_records(db: Session, session_id: str) -> list[dict[str, Any]]:
         }
         for record in db.scalars(select(AttendanceRecord).where(AttendanceRecord.session_id == session_id)).all()
     ]
+
+
+def verify_image_against_student_db(db: Session, session_id: str, file_bytes: bytes) -> dict[str, Any]:
+    session = db.scalar(select(AttendanceSession).where(AttendanceSession.session_id == session_id))
+    if session is None:
+        raise ValueError("Session not found")
+
+    students = db.scalars(select(Student).where(Student.section_id == session.section_id)).all()
+    photo_vector = _image_signature_from_bytes(file_bytes)
+    matches: list[dict[str, Any]] = []
+
+    for student in students:
+        embedding = _string_to_vector(student.face_embedding)
+        similarity = _vector_similarity(photo_vector, embedding)
+        if similarity >= 0.92:
+            recognition_status = "confident"
+        elif similarity >= 0.78:
+            recognition_status = "uncertain"
+        elif similarity >= 0.55:
+            recognition_status = "unknown"
+        else:
+            recognition_status = "not_detected"
+
+        confidence = round(similarity, 4)
+        matches.append(
+            {
+                "student_id": student.student_id,
+                "name": student.full_name,
+                "roll_number": student.roll_number,
+                "confidence": confidence,
+                "recognition_status": recognition_status,
+            }
+        )
+
+    existing_records = db.scalars(select(AttendanceRecord).where(AttendanceRecord.session_id == session_id)).all()
+    for record in existing_records:
+        db.delete(record)
+    db.commit()
+
+    ordered = sorted(matches, key=lambda item: item["confidence"], reverse=True)
+    result_buckets = {"confident": [], "uncertain": [], "unknown": [], "not_detected": []}
+
+    for match in ordered:
+        bucket = match["recognition_status"]
+        if bucket not in result_buckets:
+            bucket = "unknown"
+        result_buckets[bucket].append(
+            {
+                "student_id": match["student_id"],
+                "name": match["name"],
+                "roll_number": match["roll_number"],
+                "confidence": match["confidence"],
+                "recognition_status": match["recognition_status"],
+            }
+        )
+
+    for bucket in ["confident", "uncertain", "unknown", "not_detected"]:
+        for item in result_buckets[bucket]:
+            record = AttendanceRecord(
+                attendance_id=f"att-{session.session_id}-{item['student_id']}",
+                session_id=session.session_id,
+                student_id=item["student_id"],
+                recognition_status=item["recognition_status"],
+                confidence_score=item["confidence"],
+                final_status=None,
+                source_photo="database_match",
+                is_teacher_override=False,
+            )
+            db.add(record)
+    db.commit()
+
+    return {
+        "session_id": session_id,
+        "results": result_buckets,
+    }
 
 
 def finalize_session(db: Session, session_id: str, teacher_id: str, decisions: dict[str, str]) -> dict[str, Any]:

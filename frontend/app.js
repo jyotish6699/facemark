@@ -553,6 +553,10 @@ function renderUpload() {
             <button type="button" class="primary-btn">Select image</button>
           </label>
 
+          <div class="photo-preview-wrap hidden" id="photoPreviewWrap">
+            <img id="photoPreview" class="selected-photo-preview" alt="Selected classroom photo preview" />
+          </div>
+
           <div class="processing-box hidden" id="processingBox">
             <strong>Processing image</strong>
             <div class="progress-line"><span></span></div>
@@ -560,6 +564,7 @@ function renderUpload() {
           </div>
 
           <div class="action-row">
+            <button class="primary-btn" id="verifyDatabaseBtn">Verify against student DB</button>
             <button class="secondary-btn" id="mockProcessBtn">Run demo recognition</button>
             <button class="ghost-btn" data-nav="dashboard">Cancel</button>
           </div>
@@ -567,6 +572,35 @@ function renderUpload() {
       </div>
     </div>
   `;
+
+    document.getElementById('verifyDatabaseBtn').addEventListener('click', async () => {
+      const processingBox = document.getElementById('processingBox');
+      const photoInput = document.getElementById('photoInput');
+      const file = photoInput?.files?.[0];
+
+      if (!file) {
+        alert('Please choose a classroom photo before verifying students against the database.');
+        return;
+      }
+
+      processingBox.classList.remove('hidden');
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await apiFetch(`/api/attendance/sessions/${demoState.sessionId}/verify-image`, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await response.json();
+        demoState.detectResults = buildRecognitionResults(data);
+        demoState.currentView = 'results';
+        renderResults();
+      } catch (error) {
+        processingBox.classList.add('hidden');
+        alert(error.message || 'Database verification failed. Please try again.');
+      }
+    });
 
     document.getElementById('mockProcessBtn').addEventListener('click', async () => {
     const processingBox = document.getElementById('processingBox');
@@ -585,6 +619,43 @@ function renderUpload() {
       alert(error.message || 'Recognition failed. Please try again.');
     }
   });
+
+  const photoInput = document.getElementById('photoInput');
+  const photoPickerButton = document.querySelector('#photoInput + button');
+  const photoPreviewWrap = document.getElementById('photoPreviewWrap');
+  const photoPreview = document.getElementById('photoPreview');
+
+  if (photoInput && photoPickerButton) {
+    photoPickerButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      photoInput.click();
+    });
+
+    photoInput.addEventListener('change', async () => {
+      const file = photoInput.files?.[0];
+      if (!file) return;
+
+      if (photoPreview && photoPreviewWrap) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          photoPreview.src = String(reader.result || '');
+          photoPreviewWrap.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        await apiFetch(`/api/attendance/sessions/${demoState.sessionId}/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+      } catch (error) {
+        alert(error.message || 'Image upload failed.');
+      }
+    });
+  }
 
   document.querySelectorAll('[data-nav]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -724,6 +795,10 @@ function renderSecondPhoto() {
             <button type="button" class="primary-btn">Select second image</button>
           </label>
 
+          <div class="photo-preview-wrap hidden" id="secondPhotoPreviewWrap">
+            <img id="secondPhotoPreview" class="selected-photo-preview" alt="Selected second classroom photo preview" />
+          </div>
+
           <div class="action-row">
             <button class="primary-btn" id="processSecondPhotoBtn">Process second photo</button>
             <button class="ghost-btn" data-nav="results">Skip</button>
@@ -747,6 +822,43 @@ function renderSecondPhoto() {
       alert(error.message || 'Unable to merge the second photo results.');
     }
   });
+
+  const secondPhotoInput = document.getElementById('secondPhotoInput');
+  const secondPhotoPickerButton = document.querySelector('#secondPhotoInput + button');
+  const secondPhotoPreviewWrap = document.getElementById('secondPhotoPreviewWrap');
+  const secondPhotoPreview = document.getElementById('secondPhotoPreview');
+
+  if (secondPhotoInput && secondPhotoPickerButton) {
+    secondPhotoPickerButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      secondPhotoInput.click();
+    });
+
+    secondPhotoInput.addEventListener('change', async () => {
+      const file = secondPhotoInput.files?.[0];
+      if (!file) return;
+
+      if (secondPhotoPreview && secondPhotoPreviewWrap) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          secondPhotoPreview.src = String(reader.result || '');
+          secondPhotoPreviewWrap.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        await apiFetch(`/api/attendance/sessions/${demoState.sessionId}/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+      } catch (error) {
+        alert(error.message || 'Second image upload failed.');
+      }
+    });
+  }
 
   document.querySelectorAll('[data-nav]').forEach((button) => {
     button.addEventListener('click', () => {
