@@ -1,6 +1,6 @@
 # FaceMark
 
-FaceMark is a hackathon-ready classroom attendance system that helps teachers quickly identify students from a classroom photo, review uncertain matches, and finalize attendance with teacher approval.
+FaceMark is a classroom attendance system that helps teachers quickly identify students from a classroom photo, review uncertain matches, and finalize attendance with teacher approval.
 
 The product workflow is intentionally simple and reliable:
 
