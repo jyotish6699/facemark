@@ -1,0 +1,20 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: facemark-db
+    environment:
+      POSTGRES_DB: facemark_demo
+      POSTGRES_USER: facemark
+      POSTGRES_PASSWORD: facemark123
+    ports:
+      - "5432:5432"
+    volumes:
+      - facemark-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U facemark -d facemark_demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  facemark-postgres-data:

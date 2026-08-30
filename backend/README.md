@@ -4,23 +4,22 @@ This backend is a demo-focused FastAPI application for the FaceMark classroom at
 
 ## Quick start
 
-1. Create a virtual environment
-2. Install dependencies
-3. Copy `.env.example` to `.env`
-4. Run the app
+From the repository root, run:
 
 ```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn app.main:app --reload
+./scripts/run-database.sh
+./scripts/run-backend.sh
 ```
+
+The script automatically:
+- creates `backend/.env` from `.env.example` (if missing)
+- creates `backend/.venv` (if missing)
+- installs backend dependencies (if missing)
+- starts FastAPI at `http://localhost:8001`
 
 ## Default behavior
 
-For the hackathon demo, PostgreSQL is the default database. The app is configured to use the PostgreSQL connection string in `.env`.
+For the hackathon demo, PostgreSQL is the default database. The app uses the `DATABASE_URL` value in `backend/.env`.
 
 If no `DATABASE_URL` is configured, it falls back to a local SQLite database only for quick local testing.
 
