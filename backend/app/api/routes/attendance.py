@@ -119,7 +119,12 @@ def verify_image(
 
     file_bytes = file.file.read()
     payload = verify_image_against_student_db(db, session_id, file_bytes)
-    return {"session_id": session_id, "results": payload["results"]}
+    return {
+        "session_id": session_id,
+        "results": payload["results"],
+        "status": payload.get("status"),
+        "message": payload.get("message"),
+    }
 
 
 @router.post("/sessions/{session_id}/recognize", response_model=RecognitionResponse)

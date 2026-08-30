@@ -76,6 +76,8 @@ class RecognitionResultItem(BaseModel):
 class RecognitionResponse(BaseModel):
     session_id: str
     results: dict[str, list[RecognitionResultItem]]
+    status: str | None = None
+    message: str | None = None
 
 
 class FinalizeRequest(BaseModel):
