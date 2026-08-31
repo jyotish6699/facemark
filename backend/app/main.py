@@ -43,6 +43,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+<<<<<<< HEAD
 # Global Exception Handlers
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -82,3 +83,19 @@ def root():
         "health": "/health",
         "api_v1": settings.API_V1_STR
     }
+=======
+app.include_router(auth_router)
+app.include_router(dashboard_router)
+app.include_router(sections_router)
+app.include_router(attendance_router)
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    Base.metadata.create_all(bind=engine)
+
+
+@app.get("/health")
+def health_check() -> dict[str, str]:
+    return {"status": "ok"}
+>>>>>>> origin/main

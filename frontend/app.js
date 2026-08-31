@@ -1,4 +1,5 @@
 const app = document.getElementById('app');
+const API_BASE_URL = 'http://localhost:8001';
 
 // ==========================================
 // API CLIENT & AUTHENTICATION

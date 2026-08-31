@@ -151,6 +151,31 @@ A `.env.example` file will be created during implementation with placeholders fo
 - file storage config
 - recognition threshold settings
 
+### One-time setup + 3 terminal run
+
+Run once from repo root:
+
+```bash
+./scripts/setup-local.sh
+```
+
+Then always run these 3 commands in 3 terminals:
+
+```bash
+# Terminal 1: database
+./scripts/run-database.sh
+
+# Terminal 2: backend (http://localhost:8001)
+./scripts/run-backend.sh
+
+# Terminal 3: frontend (http://localhost:5500)
+./scripts/run-frontend.sh
+```
+
+Demo login:
+- email: `ayesha.khan@facemark.local`
+- password: `Teacher@123`
+
 ## Security and privacy
 
 The implementation follows the project specification requirements:
