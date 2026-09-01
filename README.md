@@ -173,8 +173,8 @@ Then always run these 3 commands in 3 terminals:
 ```
 
 Demo login:
-- email: `ayesha.khan@facemark.local`
-- password: `Teacher@123`
+- email: `teacher@facemark.demo`
+- password: `demo123`
 
 ## Security and privacy
 

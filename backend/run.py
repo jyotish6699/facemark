@@ -15,6 +15,6 @@ import uvicorn
 
 if __name__ == "__main__":
     print("[*] Starting FaceMark Backend Server...")
-    print("[*] API Documentation: http://localhost:8000/docs")
-    print("[*] Frontend App:      http://localhost:8000/app")
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    print("[*] API Documentation: http://localhost:8001/docs")
+    print("[*] Frontend App:      http://localhost:8001/app")
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8001, reload=True)

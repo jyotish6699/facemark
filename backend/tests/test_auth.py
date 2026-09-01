@@ -30,7 +30,7 @@ def test_get_me_authenticated(client, teacher_auth_headers):
     assert response.status_code == 200
     data = response.json()
     assert data["email"] == "teacher@facemark.demo"
-    assert data["full_name"] == "Ms. Priya Nair"
+    assert data["full_name"] == "Teacher"
 
 def test_get_me_unauthenticated(client):
     response = client.get("/api/v1/auth/me")

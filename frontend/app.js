@@ -1,10 +1,10 @@
 const app = document.getElementById('app');
-const API_BASE_URL = 'http://localhost:8001';
+const API_BASE_URL = (window.FACEMARK_API_BASE_URL || 'http://localhost:8001').replace(/\/$/, '');
 
 // ==========================================
 // API CLIENT & AUTHENTICATION
 // ==========================================
-const API_BASE = 'http://localhost:8000/api/v1';
+const API_BASE = `${API_BASE_URL}/api/v1`;
 let authToken = localStorage.getItem('facemark-token') || null;
 let currentUser = null;
 

@@ -13,7 +13,7 @@ AI-Powered Classroom Attendance System backend built with **FastAPI**, **SQLAlch
 - **Deterministic Multi-Photo Merge Engine**: Merges evidence across multiple photos in a single session without duplicate counts.
 - **Teacher Review & Transactional Finalization**: Allows teachers to override attendance decisions and freezes the session.
 - **Audit Logging**: Logs changes and finalization events.
-- **Automatic Seeding**: Seeds teachers, classes, subjects, students, and past attendance sessions on first launch.
+- **Automatic Seeding**: Seeds only baseline accounts (admin + teacher) on first launch; classes/students are user-managed.
 
 ---
 
@@ -28,10 +28,10 @@ pip install -r requirements.txt
 ```bash
 python run.py
 ```
-- **API Documentation (Swagger UI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
-- **Health Check**: [http://localhost:8000/health](http://localhost:8000/health)
-- **Direct Web App**: [http://localhost:8000/app](http://localhost:8000/app)
+- **API Documentation (Swagger UI)**: [http://localhost:8001/docs](http://localhost:8001/docs)
+- **ReDoc**: [http://localhost:8001/redoc](http://localhost:8001/redoc)
+- **Health Check**: [http://localhost:8001/health](http://localhost:8001/health)
+- **Direct Web App**: [http://localhost:8001/app](http://localhost:8001/app)
 
 ---
 
@@ -40,8 +40,25 @@ python run.py
 | Role | Email | Password |
 |---|---|---|
 | **Teacher** | `teacher@facemark.demo` | `demo123` |
-| **Teacher** | `sanjay@facemark.demo` | `demo123` |
 | **Admin** | `admin@facemark.demo` | `admin123` |
+
+### One-shot bootstrap + end-to-end verification using one image
+
+Use this when you want to enroll one student from a real image and immediately verify attendance recognition count:
+
+```bash
+python scripts/bootstrap_attendance_with_image.py \
+  --image-path "/absolute/path/to/portrait.jpg" \
+  --student-name "Jyotish Kumar" \
+  --student-number "JYOTISH-001"
+```
+
+The script will:
+- create/update class + student + class membership
+- extract and store 512-dim embedding
+- create an attendance session
+- process the same image as attendance input
+- verify that the student is counted as a confident attendance match
 
 ---
 
